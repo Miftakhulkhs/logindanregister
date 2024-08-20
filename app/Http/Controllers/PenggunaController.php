@@ -10,27 +10,30 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
 use App\Models\Pengguna;
+use Carbon\Carbon;
 
 class PenggunaController extends Controller
 {
+    // Menampilkan formulir pendaftaran
     public function showRegistrationForm()
     {
         return view('auth.register');
     }
 
+    // Proses pendaftaran pengguna
     public function register(Request $request)
     {
         $request->validate([
             'nama' => 'required|string|max:100',
             'username' => 'required|string|unique:pengguna,username',
-            'no_hp' => 'nullable|string|max:20|unique:pengguna,no_hp', // Menambahkan validasi unik untuk no_hp
+            'no_hp' => 'nullable|string|max:20|unique:pengguna,no_hp',
             'password' => 'required|string|min:8|confirmed',
             'level' => 'required|string|in:Owner,Kepala Produksi,Customer Service',
         ], [
-            'no_hp.unique' => 'Nomor HP sudah terdaftar.' // Pesan error khusus untuk nomor HP
+            'no_hp.unique' => 'Nomor HP sudah terdaftar.'
         ]);
 
-        // Create new user
+        // Membuat pengguna baru
         $pengguna = Pengguna::create([
             'id_pengguna' => Pengguna::generateId(),
             'nama' => $request->nama,
@@ -38,34 +41,37 @@ class PenggunaController extends Controller
             'no_hp' => $request->no_hp,
             'password' => Hash::make($request->password),
             'level' => $request->level,
-            'otp_verified_at' => now(),
-            'otp_created_at' => now(), // Ensure this field exists
         ]);
 
-        // Generate OTP and send it
+        // Generate OTP dan kirim
         $otp = rand(100000, 999999);
         $pengguna->otp = $otp;
+        $pengguna->otp_created_at = now(); // Set waktu OTP dibuat
         $pengguna->save();
 
+        // Kirim OTP ke nomor yang didaftarkan
         $response = Http::withHeaders([
             'Authorization' => 'A5!VQAYa3UigYG9kpPpw',
         ])->post('https://api.fonnte.com/send', [
-            'target' => $request->no_hp,
+            'target' => $pengguna->no_hp, // Kirim OTP ke nomor HP yang didaftarkan
             'message' => "Your OTP: " . $otp,
         ]);
 
         if ($response->successful()) {
-            return redirect()->route('otp.verify.form')->with('success', 'OTP telah dikirim. Silakan periksa WhatsApp Anda.');
+            // Arahkan ke halaman verifikasi OTP
+            return redirect()->route('otp.verify.form')->with('info', 'OTP telah dikirim. Silakan periksa WhatsApp Anda.');
         } else {
             return redirect()->route('register')->with('error', 'Terjadi kesalahan saat mengirim OTP.');
         }
     }
 
+    // Menampilkan formulir verifikasi OTP
     public function showOtpForm()
     {
         return view('auth.verify-otp');
     }
 
+    // Verifikasi OTP
     public function verifyOtp(Request $request)
     {
         $request->validate([
@@ -78,6 +84,7 @@ class PenggunaController extends Controller
 
         if ($pengguna && $pengguna->otp_verified_at === null) {
             $otpCreatedAt = $pengguna->otp_created_at;
+            // Verifikasi OTP hanya berlaku 1 menit
             if (now()->diffInMinutes($otpCreatedAt) <= 1) {
                 $pengguna->otp_verified_at = now();
                 $pengguna->save();
@@ -85,7 +92,11 @@ class PenggunaController extends Controller
                 Auth::login($pengguna);
                 Log::info('OTP verified successfully', ['id_pengguna' => $pengguna->id]);
 
-                return redirect()->route('login.form')->with('success', 'OTP benar, silakan login.');
+                // Hapus flag OTP setelah verifikasi
+                session(['requires_otp' => false]);
+
+                // Arahkan ke halaman SPK setelah verifikasi OTP
+                return redirect()->route('spk.form')->with('success', 'OTP benar, Anda berhasil login.');
             } else {
                 Log::info('OTP expired', ['otp' => $request->otp]);
                 return redirect()->route('otp.verify.form')->with('otp_expired', true);
@@ -96,103 +107,159 @@ class PenggunaController extends Controller
         }
     }
 
+    // Minta OTP Baru
     public function requestNewOtp(Request $request)
-    {
-        // Find the user based on the session or another method to identify them
-        $user = Auth::user();
-        
-        if ($user) {
-            $otp = rand(100000, 999999);
-            $user->otp = $otp;
-            $user->otp_created_at = now();
-            $user->otp_verified_at = null; // Reset the verification status
-            $user->save();
+{
+    // Mendapatkan inputan pengguna (username atau nomor HP)
+    $username = $request->input('username');
+    $no_hp = $request->input('no_hp');
 
-            // Send OTP via the service
-            $response = Http::withHeaders([
-                'Authorization' => 'A5!VQAYa3UigYG9kpPpw',
-            ])->post('https://api.fonnte.com/send', [
-                'target' => $user->no_hp,
-                'message' => "Your OTP: " . $otp,
-            ]);
+    // Cari pengguna berdasarkan username atau nomor HP
+    $user = Pengguna::when($username, function($query, $username) {
+        return $query->where('username', $username);
+    })->when($no_hp, function($query, $no_hp) {
+        return $query->where('no_hp', $no_hp);
+    })->first();
 
-            if ($response->successful()) {
-                return redirect()->route('otp.verify.form')->with('success', 'OTP baru telah dikirim. Silakan periksa WhatsApp Anda.');
-            } else {
-                return redirect()->route('otp.verify.form')->with('error', 'Terjadi kesalahan saat mengirim OTP.');
-            }
-        } else {
-            return redirect()->route('otp.verify.form')->with('error', 'Pengguna tidak ditemukan.');
-        }
+    if (!$user) {
+        return redirect()->route('otp.verify.form')->with('error', 'Pengguna tidak ditemukan.');
     }
 
+    // Debug: Tampilkan nomor telepon pengguna
+    Log::info('Pengguna Ditemukan untuk OTP', [
+        'id' => $user->id,
+        'no_hp' => $user->no_hp
+    ]);
+
+    // Generate OTP baru
+    $otp = rand(100000, 999999);
+    $user->otp = $otp;
+    $user->otp_created_at = now();
+    $user->otp_verified_at = null; // Reset status verifikasi
+    $user->save();
+
+    // Kirim OTP via layanan
+    $response = Http::withHeaders([
+        'Authorization' => 'A5!VQAYa3UigYG9kpPpw',
+    ])->post('https://api.fonnte.com/send', [
+        'target' => $user->no_hp, // Pastikan ini nomor telepon yang benar
+        'message' => "Your OTP: " . $otp,
+    ]);
+
+    if ($response->successful()) {
+        return redirect()->route('otp.verify.form')->with('info', 'OTP baru telah dikirim. Silakan periksa WhatsApp Anda.');
+    } else {
+        return redirect()->route('otp.verify.form')->with('error', 'Terjadi kesalahan saat mengirim OTP.');
+    }
+}
+
+
+    // Menampilkan formulir login
     public function showLoginForm()
     {
         return view('auth.login');
     }
 
+    // Menangani login
     public function login(Request $request)
     {
-        $request->validate([
-            'username' => 'required|string',
-            'password' => 'required|string',
-        ]);
-
         $credentials = $request->only('username', 'password');
-        $username = $request->input('username');
+        $username = $request->username;
 
-       if (Cache::has('login_attempts_' . $username)) {
-    $blockedUntil = Cache::get('login_attempts_' . $username);
+        // Mengecek apakah username terdaftar
+        if (!Pengguna::where('username', $username)->exists()) {
+            throw ValidationException::withMessages([
+                'username' => 'Username belum terdaftar. Silakan daftar terlebih dahulu.',
+            ]);
+        }
 
-    // Jika blockedUntil adalah string, konversi menjadi Carbon instance
-    if (is_string($blockedUntil)) {
-        $blockedUntil = \Carbon\Carbon::parse($blockedUntil);
+        // Memeriksa apakah ada upaya login yang diblokir
+        if (Cache::has('login_attempts_' . $username)) {
+            $blockedUntil = Cache::get('login_attempts_' . $username);
+            if (is_string($blockedUntil)) {
+                $blockedUntil = \Carbon\Carbon::parse($blockedUntil);
+            }
+            if ($blockedUntil instanceof \Carbon\Carbon && now()->lessThan($blockedUntil)) {
+                $remainingTime = $blockedUntil->diffInMinutes(now());
+                $remainingSeconds = $blockedUntil->diffInSeconds(now()) % 60;
+                throw ValidationException::withMessages([
+                    'username' => "Terlalu banyak upaya. Silakan coba lagi dalam $remainingTime menit $remainingSeconds detik.",
+                ]);
+            }
+        }
+
+        // Menangani upaya login
+        if (Auth::attempt($credentials)) {
+            // Menghapus data pemblokiran setelah login berhasil
+            Cache::forget('login_attempts_' . $username);
+
+            $user = Auth::user();
+
+            // Log status OTP
+            Log::info('User login attempt', ['user_id' => $user->id, 'otp_verified_at' => $user->otp_verified_at]);
+
+            // Cek jika pengguna harus diverifikasi dengan OTP
+            if (session('auto_logout', false)) {
+                // Logout pengguna dan kirim OTP
+                Auth::logout();
+                session()->forget('auto_logout'); // Hapus flag auto-logout
+
+                // Generate OTP dan reset status
+                $otp = rand(100000, 999999);
+                $user->otp = $otp;
+                $user->otp_created_at = now();
+                $user->otp_verified_at = null; // Reset status verifikasi
+                $user->save();
+
+                // Kirim OTP via layanan
+                $response = Http::withHeaders([
+                    'Authorization' => 'A5!VQAYa3UigYG9kpPpw',
+                ])->post('https://api.fonnte.com/send', [
+                    'target' => $user->no_hp, // Pastikan ini nomor telepon yang benar
+                    'message' => "Your OTP: " . $otp,
+                ]);
+
+                if ($response->successful()) {
+                    return redirect()->route('otp.verify.form')->with('info', 'OTP telah dikirim. Silakan periksa WhatsApp Anda.');
+                } else {
+                    return redirect()->route('login.form')->with('error', 'Terjadi kesalahan saat mengirim OTP.');
+                }
+            } else {
+                // Arahkan ke halaman SPK jika OTP sudah diverifikasi
+                if ($user->otp_verified_at) {
+                    return redirect()->route('spk.form')->with('success', 'Anda berhasil login.');
+                } else {
+                    return redirect()->route('otp.verify.form')->with('info', 'Silakan verifikasi OTP.');
+                }
+            }
+        } else {
+            // Penanganan kesalahan login
+            $attempts = Cache::get('login_attempts_' . $username, 0);
+            $attempts++;
+            if ($attempts >= 3) {
+                $blockedUntil = now()->addMinutes(1)->toDateTimeString();
+                Cache::put('login_attempts_' . $username, $blockedUntil, now()->addMinutes(1));
+                throw ValidationException::withMessages([
+                    'username' => 'Terlalu banyak upaya login. Silakan coba lagi dalam 1 menit.',
+                ]);
+            } else {
+                Cache::put('login_attempts_' . $username, $attempts);
+                throw ValidationException::withMessages([
+                    'username' => 'Username atau password salah.',
+                ]);
+            }
+        }
     }
 
-    // Pastikan blockedUntil adalah Carbon instance
-    if ($blockedUntil instanceof \Carbon\Carbon && now()->lessThan($blockedUntil)) {
-        $remainingTime = $blockedUntil->diffInMinutes(now());
-        $remainingSeconds = $blockedUntil->diffInSeconds(now()) % 60;
-        throw ValidationException::withMessages([
-            'username' => "Terlalu banyak upaya. Silakan coba lagi dalam $remainingTime menit $remainingSeconds detik.",
-        ]);
-    }
-}
-
-if (Auth::attempt($credentials)) {
-    Cache::forget('login_attempts_' . $username);
-
-    // Periksa apakah OTP sudah diverifikasi
-    $user = Auth::user();
-    if ($user->otp_verified_at === null) {
-        Auth::logout();
-        return redirect()->route('otp.verify.form')->with('info', 'Silakan verifikasi OTP sebelum mengakses aplikasi.');
-    }
-
-    return redirect()->route('spk.form')->with('success', 'Anda berhasil login.');
-} else {
-    $attempts = Cache::get('login_attempts_' . $username, 0);
-    $attempts++;
-    if ($attempts >= 3) {
-        $blockedUntil = now()->addMinutes(1);
-        Cache::put('login_attempts_' . $username, $blockedUntil, $blockedUntil);
-        throw ValidationException::withMessages([
-            'username' => 'Terlalu banyak upaya login. Silakan coba lagi dalam 1 menit.',
-        ]);
-    } else {
-        Cache::put('login_attempts_' . $username, $attempts, now()->addMinutes(1));
-        throw ValidationException::withMessages([
-            'username' => 'Username atau password salah.',
-        ]);
-    }
-}
-
-
-    }
-
-    public function logout()
+    // Logout pengguna
+    public function logout(Request $request)
     {
         Auth::logout();
-        return redirect('/');
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('login.form');
     }
 }
+
+

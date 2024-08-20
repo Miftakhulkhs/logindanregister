@@ -2,6 +2,8 @@
 <html lang="en">
 
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verifikasi OTP</title>
     <style>
         body {
@@ -74,14 +76,14 @@
         @endif
 
         @if(session('error'))
-            <p>{{ session('error') }}</p>
+            <p class="message">{{ session('error') }}</p>
         @endif
 
         @if(session('info'))
             <p>{{ session('info') }}</p>
         @endif
 
-        <form method="POST" action="{{ route('otp.verify.form') }}">
+        <form method="POST" action="{{ route('otp.verify') }}">
             @csrf
             <h1>Verifikasi OTP</h1>
             <input placeholder="xxxxxx" name="otp" type="text" id="otp" required />
@@ -89,7 +91,7 @@
         </form>
 
         <p style="margin-top: 10px;">Belum menerima OTP? <a href="#" onclick="event.preventDefault(); document.getElementById('resend-otp-form').submit();">Minta OTP Lagi</a></p>
-        <form id="resend-otp-form" method="POST" action="{{ route('otp.request') }}" style="display: none;">
+        <form id="resend-otp-form" method="POST" action="{{ route('otp.request.new') }}" style="display: none;">
             @csrf
         </form>
     </div>

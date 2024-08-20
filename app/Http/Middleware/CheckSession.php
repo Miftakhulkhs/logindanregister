@@ -4,37 +4,34 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Session;
+use Carbon\Carbon;
 
 class CheckSession
 {
     public function handle($request, Closure $next)
     {
         if (Auth::check()) {
-            $user = Auth::user();
-            $lastActivity = session('last_activity');
+            // Ambil waktu terakhir aktivitas pengguna
+            $lastActivity = Session::get('last_activity_time');
+            $now = Carbon::now();
 
-            // Tambahkan log
-            Log::info('Last Activity: ' . ($lastActivity ? $lastActivity : 'None'));
-            Log::info('Current Time: ' . now());
+            if ($lastActivity) {
+                $lastActivityTime = Carbon::parse($lastActivity);
+                $inactiveMinutes = $now->diffInMinutes($lastActivityTime);
 
-            // Cek apakah sesi telah kadaluarsa
-            if ($lastActivity && now()->diffInMinutes($lastActivity) > 2) {
-                // Logout pengguna dan hapus sesi
-                Log::info('Session expired, logging out user.');
-                Auth::logout();
-                session()->flush();
-                return redirect()->route('login.form')->with('error', 'Sesi telah kedaluwarsa. Silakan login kembali.');
+                // Jika pengguna tidak aktif selama lebih dari 1 menit
+                if ($inactiveMinutes > 1) {
+                    Auth::logout();
+                    Session::flush();
+                    // Tandai bahwa logout disebabkan oleh ketidakaktifan
+                    session()->put('auto_logout', true);
+                    return redirect()->route('login.form')->with('error', 'Anda telah logout karena tidak aktif.');
+                }
             }
 
             // Perbarui waktu aktivitas terakhir
-            session(['last_activity' => now()]);
-
-            // Periksa apakah OTP sudah diverifikasi
-            if ($user->otp_verified_at === null) {
-                Log::info('OTP not verified, redirecting to OTP verification.');
-                return redirect()->route('otp.verify.form')->with('info', 'Silakan verifikasi OTP sebelum melanjutkan.');
-            }
+            Session::put('last_activity_time', $now->toDateTimeString());
         }
 
         return $next($request);

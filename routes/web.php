@@ -15,19 +15,21 @@ use App\Http\Controllers\SpkController;
 |
 */
 
+// Rute untuk halaman depan dan redirect ke login
 Route::get('/', function () {
-     return redirect()->route('login.form');
+    return redirect()->route('login.form');
 });
 
 // Rute pendaftaran pengguna
 Route::get('/register', [PenggunaController::class, 'showRegistrationForm'])->name('register');
 Route::post('/register', [PenggunaController::class, 'register']);
-// Rute verifikasi OTP
-Route::get('/otp-verify', [PenggunaController::class, 'showOtpForm'])->name('otp.verify.form');
-Route::post('/otp-verify', [PenggunaController::class, 'verifyOtp']);
 
-// Rute untuk meminta ulang OTP
-Route::post('/otp-request', [PenggunaController::class, 'requestNewOtp'])->name('otp.request');
+// Rute untuk verifikasi OTP (penggunaan umum)
+Route::get('/otp/verify', [PenggunaController::class, 'showOtpForm'])->name('otp.verify.form');
+Route::post('/otp/verify', [PenggunaController::class, 'verifyOtp'])->name('otp.verify');
+
+// Rute untuk meminta OTP baru jika OTP kadaluarsa
+Route::post('/otp/request-new-otp', [PenggunaController::class, 'requestNewOtp'])->name('otp.request.new');
 
 // Rute login dan logout
 Route::get('/login', [PenggunaController::class, 'showLoginForm'])->name('login.form');

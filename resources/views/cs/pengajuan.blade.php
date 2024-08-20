@@ -159,7 +159,7 @@
                                             <option value="Vendor B">Vendor B</option>
                                         </select>
                                     </div>
-                                    <div class="form-group">
+                                    <div class="col-md-6">
                                          <label for="idPengguna">ID Pengguna</label>
                                             <input type="text" class="form-control" id="idPengguna" name="id_pengguna"
                                              value="{{ $id_pengguna }}" readonly> <!-- Display ID pengguna yang benar -->
