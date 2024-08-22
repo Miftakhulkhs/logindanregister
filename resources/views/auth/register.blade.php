@@ -125,14 +125,15 @@
                             <input type="text" class="form-control" id="no_hp" name="no_hp"
                                 value="{{ old('no_hp') }}">
                             @error('no_hp')
-                                <p class="error-message">{{ $message }}</p>
+                                <p class="error-message">Nomor HP sudah terdaftar</p>
                             @enderror
                         </div>
                         <div class="form-group">
                             <label for="password_confirmation">Konfirmasi Kata Sandi</label>
-                             <input type="password" class="form-control" id="password_confirmation" name="password_confirmation" required>
-                             @error('password_confirmation')
-                             <p class="error-message">Konfirmasi kata sandi tidak sesuai.</p>
+                            <input type="password" class="form-control" id="password_confirmation"
+                                name="password_confirmation" required>
+                            @error('password_confirmation')
+                                <p class="error-message">Konfirmasi kata sandi tidak sesuai.</p>
                             @enderror
                         </div>
                     </div>

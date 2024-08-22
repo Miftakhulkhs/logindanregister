@@ -14,17 +14,21 @@ use App\Http\Controllers\PenggunaApiController;
 |
 */
 
-// Pendaftaran Pengguna
-Route::post('/register', [PenggunaApiController::class, 'register'])->name('api.register');
+Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+    return $request->user();
+});
 
-// Verifikasi OTP
-Route::post('/otp/verify', [PenggunaApiController::class, 'verifyOtp'])->name('api.otp.verify');
+// Rute untuk menampilkan daftar pengguna
+Route::get('/pengguna', [PenggunaApiController::class, 'index']);
 
-// Minta OTP Baru
-Route::post('/request-new-otp', [PenggunaApiController::class, 'requestNewOtp'])->name('api.requestNewOtp');
+// Rute untuk menampilkan detail pengguna berdasarkan ID
+Route::get('/pengguna/{id}', [PenggunaApiController::class, 'show']);
 
-// Login Pengguna
-Route::post('/login', [PenggunaApiController::class, 'login']);
+// Rute untuk menambahkan pengguna baru
+Route::post('/pengguna', [PenggunaApiController::class, 'store']);
 
-// Logout Pengguna
-Route::post('/logout', [PenggunaApiController::class, 'logout'])->name('api.logout');
+// Rute untuk memperbarui data pengguna
+Route::put('/pengguna/{id_pengguna}', [PenggunaApiController::class, 'update']);
+
+// Rute untuk menghapus pengguna
+Route::delete('/pengguna/{id_pengguna}', [PenggunaApiController::class, 'destroy']);

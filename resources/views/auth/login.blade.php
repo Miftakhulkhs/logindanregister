@@ -66,9 +66,14 @@
 </head>
 
 <body>
-
     <div class="login-container">
         <div class="form-container">
+            @if(session('error'))
+                <div class="alert alert-warning">
+                    {{ session('error') }}
+                </div>
+            @endif
+
             <h2 class="text-center">Sistem Informasi Produksi</h2>
             <p class="text-center">Selamat Datang! <br> Silakan masuk akun anda</p>
 
@@ -110,7 +115,6 @@
         </div>
         <div class="logo-container">
             <img src="{{ asset('images/logo.png') }}" alt="Login Illustration" class="logo">
-            <!-- Replace with your logo path -->
         </div>
     </div>
 

@@ -83,6 +83,12 @@
             <p>{{ session('info') }}</p>
         @endif
 
+        @if(session('otp_expired'))
+            <div class="alert alert-danger">
+                OTP Anda telah kadaluarsa. Silakan minta OTP baru.
+            </div>
+        @endif
+
         <form method="POST" action="{{ route('otp.verify') }}">
             @csrf
             <h1>Verifikasi OTP</h1>

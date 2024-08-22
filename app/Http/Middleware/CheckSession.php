@@ -20,13 +20,13 @@ class CheckSession
                 $lastActivityTime = Carbon::parse($lastActivity);
                 $inactiveMinutes = $now->diffInMinutes($lastActivityTime);
 
-                // Jika pengguna tidak aktif selama lebih dari 1 menit
-                if ($inactiveMinutes > 1) {
+                // Jika pengguna tidak aktif selama lebih dari 2 jam
+                if ($inactiveMinutes > 120) {
                     Auth::logout();
                     Session::flush();
                     // Tandai bahwa logout disebabkan oleh ketidakaktifan
                     session()->put('auto_logout', true);
-                    return redirect()->route('login.form')->with('error', 'Anda telah logout karena tidak aktif.');
+                    return redirect()->route('login.form')->with('error', 'Session Anda telah berakhir. Silakan login kembali.');
                 }
             }
 

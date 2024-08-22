@@ -3,31 +3,63 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Pengguna;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use App\Models\Pengguna;
 
 class PenggunaApiController extends Controller
 {
-    /**
-     * Proses pendaftaran pengguna baru
-     */
-    public function register(Request $request)
+    // Menampilkan daftar pengguna
+    public function index()
     {
-        // Validasi input pendaftaran
-        $request->validate([
+        $penggunas = Pengguna::all();
+        return response()->json([
+            'code' => 200,
+            'status' => 'success',
+            'data' => $penggunas
+        ]);
+    }
+
+    // Menampilkan detail pengguna berdasarkan ID
+    public function show($id)
+    {
+        $pengguna = Pengguna::find($id);
+
+        if ($pengguna) {
+            return response()->json([
+                'code' => 200,
+                'status' => 'success',
+                'data' => $pengguna
+            ]);
+        } else {
+            return response()->json([
+                'code' => 404,
+                'status' => 'error',
+                'message' => 'Pengguna tidak ditemukan'
+            ], 404);
+        }
+    }
+
+    // Menambahkan pengguna baru
+    public function store(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
             'nama' => 'required|string|max:100',
             'username' => 'required|string|unique:pengguna,username',
-            'no_hp' => 'nullable|string|max:20|unique:pengguna,no_hp',
-            'password' => 'required|string|min:8|confirmed',
+            'no_hp' => 'required|string|max:20|unique:pengguna,no_hp',
+            'password' => 'required|string|min:8',
             'level' => 'required|string|in:Owner,Kepala Produksi,Customer Service',
-        ], [
-            'no_hp.unique' => 'Nomor HP sudah terdaftar.'
+            'otp' => 'required|integer|digits:6',
         ]);
 
-        // Membuat pengguna baru
+        if ($validator->fails()) {
+            return response()->json([
+                'code' => 422,
+                'status' => 'error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
         $pengguna = Pengguna::create([
             'id_pengguna' => Pengguna::generateId(),
             'nama' => $request->nama,
@@ -35,167 +67,57 @@ class PenggunaApiController extends Controller
             'no_hp' => $request->no_hp,
             'password' => Hash::make($request->password),
             'level' => $request->level,
+            'otp' => $request->otp,
         ]);
 
-        // Generate OTP dan simpan ke pengguna
-        $otp = rand(100000, 999999);
-        $pengguna->otp = $otp;
-        $pengguna->otp_created_at = now(); // Set waktu OTP dibuat
-        $pengguna->save();
-
-        // Kirim OTP ke nomor yang didaftarkan melalui API Fonnte
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'A5!VQAYa3UigYG9kpPpw',
-            ])->post('https://api.fonnte.com/send', [
-                'target' => $pengguna->no_hp,
-                'message' => "Your OTP: " . $otp,
-            ]);
-
-            if ($response->successful()) {
-                return response()->json([
-                    'message' => 'OTP telah dikirim. Silakan periksa WhatsApp Anda.'
-                ], 200);
-            } else {
-                Log::error('Failed to send OTP:', $response->body());
-                return response()->json([
-                    'error' => 'Terjadi kesalahan saat mengirim OTP.'
-                ], 500);
-            }
-        } catch (\Exception $e) {
-            Log::error('Exception occurred:', ['exception' => $e->getMessage()]);
-            return response()->json([
-                'error' => 'Terjadi kesalahan sistem: ' . $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'code' => 201,
+            'status' => 'success',
+            'data' => $pengguna
+        ], 201);
     }
 
-    /**
-     * Verifikasi OTP yang dikirimkan
-     */
-    public function verifyOtp(Request $request)
+    // Memperbarui data pengguna
+    public function update(Request $request, $id_pengguna)
     {
-        // Validasi input OTP
-        $request->validate([
-            'otp' => 'required|integer',
-        ]);
+        $pengguna = Pengguna::find($id_pengguna);
 
-        // Temukan pengguna berdasarkan OTP
-        $pengguna = Pengguna::where('otp', $request->otp)->first();
+        if ($pengguna) {
+            $pengguna->update($request->all());
 
-        if ($pengguna && $pengguna->otp_verified_at === null) {
-            $otpCreatedAt = $pengguna->otp_created_at;
-            // Verifikasi OTP hanya berlaku 1 menit
-            if (now()->diffInMinutes($otpCreatedAt) <= 1) {
-                $pengguna->otp_verified_at = now();
-                $pengguna->save();
-
-                Auth::login($pengguna);
-
-                return response()->json([
-                    'message' => 'OTP benar, Anda berhasil login.'
-                ], 200);
-            } else {
-                return response()->json([
-                    'error' => 'OTP telah kadaluarsa.'
-                ], 400);
-            }
+            return response()->json([
+                'code' => 200,
+                'status' => 'success',
+                'message' => 'Berhasil memperbarui data pengguna',
+                'data' => $pengguna
+            ]);
         } else {
             return response()->json([
-                'error' => 'OTP yang Anda masukkan salah.'
-            ], 400);
-        }
-    }
-
-    /**
-     * Proses login pengguna
-     */
-    public function login(Request $request)
-    {
-        // Validasi input login
-        $this->validate($request, [
-            'username' => 'required|string',
-            'password' => 'required|string|min:8',
-        ]);
-
-        $username = $request->input('username');
-        $password = $request->input('password');
-
-        // Temukan pengguna berdasarkan username
-        $user = Pengguna::where('username', $username)->first();
-
-        if (!$user) {
-            return response()->json(['message' => 'Gagal Masuk: Username tidak ditemukan.'], 401);
-        }
-
-        // Verifikasi password
-        if (!Hash::check($password, $user->password)) {
-            return response()->json(['message' => 'Gagal Masuk: Password salah.'], 401);
-        }
-
-        // Kembalikan respons JSON dengan data pengguna
-        return response()->json([
-            'message' => 'Login berhasil',
-            'user' => $user
-        ], 200);
-    }
-
-    /**
-     * Minta OTP baru jika OTP sebelumnya kadaluarsa atau belum diterima
-     */
-    public function requestNewOtp(Request $request)
-    {
-        // Validasi input username
-        $request->validate([
-            'username' => 'required|string',
-        ]);
-
-        $user = Pengguna::where('username', $request->username)->first();
-
-        if (!$user) {
-            return response()->json([
-                'error' => 'Username tidak ditemukan.'
+                'code' => 404,
+                'status' => 'error',
+                'message' => 'Pengguna tidak ditemukan'
             ], 404);
         }
-
-        // Generate OTP baru dan simpan ke pengguna
-        $otp = rand(100000, 999999);
-        $user->otp = $otp;
-        $user->otp_created_at = now();
-        $user->otp_verified_at = null;
-        $user->save();
-
-        // Kirim OTP baru ke nomor pengguna melalui API Fonnte
-        try {
-            $response = Http::post('https://api.fonnte.com/send', [
-                'target' => $user->no_hp,
-                'message' => "Your OTP: " . $otp,
-                'Authorization' => 'A5!VQAYa3UigYG9kpPpw',
-            ]);
-
-            if ($response->successful()) {
-                return response()->json([
-                    'message' => 'OTP baru telah dikirim.'
-                ], 200);
-            } else {
-                return response()->json([
-                    'error' => 'Gagal mengirim OTP.'
-                ], 500);
-            }
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Terjadi kesalahan: ' . $e->getMessage()
-            ], 500);
-        }
     }
 
-    /**
-     * Logout pengguna
-     */
-    public function logout(Request $request)
+    // Menghapus pengguna
+    public function destroy($id_pengguna)
     {
-        return response()->json([
-            'message' => 'Logout berhasil.'
-        ], 200);
+        $pengguna = Pengguna::find($id_pengguna);
+
+        if ($pengguna) {
+            $pengguna->delete();
+            return response()->json([
+                'code' => 200,
+                'status' => 'success',
+                'message' => 'Pengguna berhasil dihapus'
+            ]);
+        } else {
+            return response()->json([
+                'code' => 404,
+                'status' => 'error',
+                'message' => 'Pengguna tidak ditemukan'
+            ], 404);
+        }
     }
 }

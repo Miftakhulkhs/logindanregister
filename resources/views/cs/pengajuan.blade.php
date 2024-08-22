@@ -92,7 +92,6 @@
 </head>
 
 <body>
-
     <div class="d-flex">
         <div class="sidebar">
             <h2><img src="{{ asset('images/indokonveksilogo.png') }}" alt="Logo" class="logo"> CS</h2>
@@ -102,6 +101,11 @@
         </div>
 
         <div class="main-content">
+            @if(session('success'))
+                 <div class="alert alert-success">
+                    {{ session('success') }}
+                </div>
+            @endif
             <div class="form-section">
                 <h3 class="mb-4 section-title">Pengajuan SPK</h3>
                 <form action="{{ route('spk.store') }}" method="POST" enctype="multipart/form-data">

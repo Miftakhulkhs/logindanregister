@@ -28,9 +28,8 @@ class PenggunaController extends Controller
             'username' => 'required|string|unique:pengguna,username',
             'no_hp' => 'nullable|string|max:20|unique:pengguna,no_hp',
             'password' => 'required|string|min:8|confirmed',
+            'password_confirmation' => 'required|string|min:8',
             'level' => 'required|string|in:Owner,Kepala Produksi,Customer Service',
-        ], [
-            'no_hp.unique' => 'Nomor HP sudah terdaftar.'
         ]);
 
         // Membuat pengguna baru
@@ -238,9 +237,9 @@ class PenggunaController extends Controller
             $attempts++;
             if ($attempts >= 3) {
                 $blockedUntil = now()->addMinutes(1)->toDateTimeString();
-                Cache::put('login_attempts_' . $username, $blockedUntil, now()->addMinutes(1));
+                Cache::put('login_attempts_' . $username, $blockedUntil, now()->addMinutes(10));
                 throw ValidationException::withMessages([
-                    'username' => 'Terlalu banyak upaya login. Silakan coba lagi dalam 1 menit.',
+                    'username' => 'Terlalu banyak upaya login. Silakan coba lagi dalam 10 menit.',
                 ]);
             } else {
                 Cache::put('login_attempts_' . $username, $attempts);
