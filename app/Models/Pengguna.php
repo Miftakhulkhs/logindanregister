@@ -23,7 +23,7 @@ class Pengguna extends Authenticatable
         'level',
         'otp',
         'otp_created_at',
-        'otp_verified_at', // Menambahkan kolom verifikasi OTP
+        'otp_verified_at', 
     ];
 
     protected $hidden = [
@@ -55,8 +55,6 @@ class Pengguna extends Authenticatable
             $latestId++;
             $newId = sprintf('P%03d', $latestId + 1);
         }
-
         return $newId;
     }
-
 }

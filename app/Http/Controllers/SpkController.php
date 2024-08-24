@@ -22,9 +22,9 @@ class SpkController extends Controller
         if ($latestKode) {
             // Mengambil urutan dari kode produksi terbaru
             $latestSequence = intval(substr($latestKode, 1, strpos($latestKode, '.') - 1));
-            $nextSequence = $latestSequence + 1; // Urutan berikutnya
+            $nextSequence = $latestSequence + 1; 
         } else {
-            $nextSequence = 1; // Urutan pertama
+            $nextSequence = 1;
         }
         
         // Membuat kode produksi baru
@@ -33,7 +33,7 @@ class SpkController extends Controller
         // Pass Kode Produksi and current user to view
         return view('cs.pengajuan', [
             'kodeProduksi' => $kodeProduksi,
-            'id_pengguna' => $pengguna->id, // Mengirimkan ID pengguna yang benar
+            'id_pengguna' => $pengguna->id, 
         ]);
     }
 
@@ -69,7 +69,7 @@ class SpkController extends Controller
         // Create new SPK
         Spk::create([
             'kode_produksi' => $request->kode_produksi,
-            'id_pengguna' => Auth::id(), // Mengambil ID pengguna yang sedang login
+            'id_pengguna' => Auth::id(), 
             'katalog_produksi' => $request->katalog_produksi,
             'material' => $request->material,
             'warna' => $request->warna,

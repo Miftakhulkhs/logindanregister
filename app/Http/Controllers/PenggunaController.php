@@ -134,14 +134,14 @@ class PenggunaController extends Controller
     $otp = rand(100000, 999999);
     $user->otp = $otp;
     $user->otp_created_at = now();
-    $user->otp_verified_at = null; // Reset status verifikasi
+    $user->otp_verified_at = null; 
     $user->save();
 
     // Kirim OTP via layanan
     $response = Http::withHeaders([
         'Authorization' => 'A5!VQAYa3UigYG9kpPpw',
     ])->post('https://api.fonnte.com/send', [
-        'target' => $user->no_hp, // Pastikan ini nomor telepon yang benar
+        'target' => $user->no_hp,
         'message' => "Your OTP: " . $otp,
     ]);
 
@@ -236,7 +236,7 @@ class PenggunaController extends Controller
             $attempts = Cache::get('login_attempts_' . $username, 0);
             $attempts++;
             if ($attempts >= 3) {
-                $blockedUntil = now()->addMinutes(1)->toDateTimeString();
+                $blockedUntil = now()->addMinutes(10)->toDateTimeString();
                 Cache::put('login_attempts_' . $username, $blockedUntil, now()->addMinutes(10));
                 throw ValidationException::withMessages([
                     'username' => 'Terlalu banyak upaya login. Silakan coba lagi dalam 10 menit.',
